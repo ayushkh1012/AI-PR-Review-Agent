@@ -25,13 +25,6 @@ An intelligent code review assistant powered by Llama 3.2 that automatically ana
 
 ## 🚀 Getting Started
 
-### Prerequisites
-
-Make sure you have the following installed:
-- Docker and Docker Compose
-- Git
-- (Optional) NVIDIA GPU with CUDA support for faster inference
-
 ### Installation
 
 1. Clone the repository
