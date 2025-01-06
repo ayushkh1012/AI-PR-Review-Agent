@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_URL=http://ollama:11434
+      - MODEL_NAME=llama2:3.2
+      - DEBUG=True
+    depends_on:
+      - redis
+      - ollama
+      - celery_worker
+
+  celery_worker:
+    build: .
+    command: poetry run celery -A src.main.celery_app worker --loglevel=info
+    volumes:
+      - ./src:/app/src
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_URL=http://ollama:11434
+      - MODEL_NAME=llama2:3.2
+    depends_on:
+      - redis
+      - ollama
+
+  celery_flower:
+    build: .
+    command: poetry run celery -A src.main.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./src:/app/src
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - celery_worker
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    command: >
+      sh -c "ollama pull llama2:3.2 && ollama serve"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:
+  ollama_data:
+
+networks:
+  default:
+    name: pr-reviewer-network 
