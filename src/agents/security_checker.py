@@ -1,8 +1,9 @@
 from langchain.prompts import ChatPromptTemplate
-from typing import Dict
+from langchain.llms.base import BaseLLM
+from typing import Dict, List
 
 class SecurityAgent:
-    def __init__(self, llm):
+    def __init__(self, llm: BaseLLM):
         self.llm = llm
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a security expert. Analyze the code for:

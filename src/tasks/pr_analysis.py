@@ -1,4 +1,4 @@
-from langchain.llms import Ollama
+from langchain_community.llms import Ollama
 from ..workflows.review_workflow import PRReviewWorkflow
 from ..core.config import Settings
 from typing import Dict
@@ -9,7 +9,7 @@ class PRAnalyzer:
         settings = Settings()
         self.llm = Ollama(
             base_url=settings.OLLAMA_URL,
-            model="llama2:3.2",
+            model="llama2:latest",
             temperature=0.1,
             top_p=0.9,
             num_ctx=4096,
