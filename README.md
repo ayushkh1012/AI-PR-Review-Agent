@@ -29,8 +29,8 @@ An intelligent code review assistant powered by Llama 3.2 that automatically ana
 
 1. Clone the repository
 ```bash
-git clone git@github.com:YourUsername/pr-analysis-tool.git
-cd pr-analysis-tool
+git clone <repository url>
+cd <repository name>
 ```
 
 2. Set up environment variables
