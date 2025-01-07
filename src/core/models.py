@@ -1,6 +1,6 @@
+from typing import List, Dict, Optional, Any
+from pydantic import BaseModel, HttpUrl, Field
 from enum import Enum
-from pydantic import BaseModel, HttpUrl
-from typing import Optional, List, Dict
 
 class TaskStatus(str, Enum):
     PENDING = "pending"
@@ -8,27 +8,35 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
-class PRAnalysisRequest(BaseModel):
-    repo_url: HttpUrl
-    pr_number: int
-    github_token: str
-
 class CodeIssue(BaseModel):
-    type: str
-    line: int
     description: str
-    suggestion: str
+    line: Optional[int] = None
+    suggestion: Optional[str] = None
+    severity: Optional[str] = "medium"
 
 class FileAnalysis(BaseModel):
-    name: str
+    path: str
     issues: List[CodeIssue]
+    suggestions: List[str]
+    complexity_score: int
 
-class AnalysisSummary(BaseModel):
-    total_files: int
-    total_issues: int
-    critical_issues: int
+class PRAnalysisRequest(BaseModel):
+    repo_url: str = Field(..., description="GitHub repository URL")
+    pr_number: int = Field(..., description="Pull request number")
+    github_token: str = Field(..., description="GitHub personal access token")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "repo_url": "https://github.com/username/repository",
+                "pr_number": 1,
+                "github_token": "ghp_xxxxxxxxxxxxxxxxxxxx"
+            }
+        }
+    }
 
 class AnalysisResponse(BaseModel):
     task_id: str
     status: TaskStatus
-    results: Optional[Dict] = None
+    results: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None

@@ -1,18 +1,20 @@
-from langchain.llms import Ollama
+from langchain_community.llms import Ollama
 import asyncio
+from ..core.config import Settings
 
 async def check_llm():
-    """Verify Llama 3.2 is working"""
+    """Verify Llama is working"""
+    settings = Settings()
     try:
         llm = Ollama(
-            base_url="http://localhost:11434",
-            model="llama2:3.2"
+            base_url=settings.OLLAMA_URL,
+            model=settings.MODEL_NAME
         )
-        response = await llm.ainvoke("Hello! Are you Llama 3.2?")
+        response = await llm.ainvoke("Hello! Are you working?")
         print("LLM Response:", response)
         return True
     except Exception as e:
-        print("Error connecting to Llama:", str(e))
+        print("Error connecting to LLM:", str(e))
         return False
 
 if __name__ == "__main__":

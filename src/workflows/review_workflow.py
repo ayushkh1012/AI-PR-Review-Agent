@@ -1,77 +1,139 @@
-from typing import Dict, List
-from langgraph.graph import Graph
-from langchain.prompts import ChatPromptTemplate
-from langchain_core.messages import HumanMessage
-from ..agents.code_reviewer import CodeReviewAgent
-from ..agents.security_checker import SecurityAgent
-from ..agents.style_checker import StyleAgent
+from typing import Dict, Any, TypedDict
+from langgraph.graph import Graph, END
+from langchain_community.llms import Ollama
+from langchain_core.prompts import ChatPromptTemplate
+import logging
+
+logger = logging.getLogger(__name__)
+
+class GraphState(TypedDict):
+    diff: str
+    metadata: Dict[str, Any]
+    style_issues: list
+    formatting_suggestions: list
+    documentation_issues: list
+    best_practice_violations: list
 
 class PRReviewWorkflow:
-    def __init__(self, llm):
+    def __init__(self, llm: Ollama):
         self.llm = llm
-        self.code_reviewer = CodeReviewAgent(llm)
-        self.security_checker = SecurityAgent(llm)
-        self.style_checker = StyleAgent(llm)
         self.graph = self._build_graph()
 
-    def _build_graph(self) -> Graph:
-        # Define the nodes
-        nodes = {
-            "parse_diff": self._parse_diff,
-            "analyze_code": self.code_reviewer.analyze,
-            "check_security": self.security_checker.analyze,
-            "check_style": self.style_checker.analyze,
-            "generate_summary": self._generate_summary,
-        }
+    def _analyze_code_style(self, state: GraphState) -> GraphState:
+        """Analyze code style and formatting"""
+        prompt = ChatPromptTemplate.from_template("""
+        You are a code reviewer analyzing a PR diff. Review the code for style and formatting issues.
+        Focus on:
+        - Code style consistency
+        - Proper indentation
+        - Line length
+        - Naming conventions
+        - Code organization
 
-        # Create the graph
+        PR Diff:
+        {diff}
+
+        Provide your analysis in a structured format.
+        """)
+        
+        try:
+            if not state.get('diff'):
+                logger.warning("No diff provided for analysis")
+                return state
+            
+            response = self.llm.invoke(prompt.format(diff=state['diff']))
+            logger.info(f"Style analysis response: {response}")
+            
+            # Parse response and update state
+            state['style_issues'] = [{'description': response}] if response else []
+            
+        except Exception as e:
+            logger.error(f"Error in style analysis: {e}")
+            state['style_issues'] = []
+            
+        return state
+
+    def _analyze_best_practices(self, state: GraphState) -> GraphState:
+        """Analyze code for best practices"""
+        prompt = ChatPromptTemplate.from_template("""
+        Review the following code diff for best practices and potential improvements:
+        
+        {diff}
+        
+        Focus on:
+        - Code efficiency
+        - Error handling
+        - Security concerns
+        - Performance implications
+        - Design patterns
+        
+        Provide specific suggestions for improvement.
+        """)
+        
+        try:
+            response = self.llm.invoke(prompt.format(diff=state['diff']))
+            logger.info(f"Best practices analysis response: {response}")
+            state['best_practice_violations'] = [{'description': response}] if response else []
+        except Exception as e:
+            logger.error(f"Error in best practices analysis: {e}")
+            state['best_practice_violations'] = []
+            
+        return state
+
+    def _build_graph(self) -> Graph:
+        """Build the analysis workflow graph"""
         workflow = Graph()
 
         # Add nodes
-        for name, func in nodes.items():
-            workflow.add_node(name, func)
+        workflow.add_node("style_analysis", self._analyze_code_style)
+        workflow.add_node("best_practices", self._analyze_best_practices)
 
-        # Define the flow
-        workflow.add_edge("parse_diff", "analyze_code")
-        workflow.add_edge("analyze_code", "check_security")
-        workflow.add_edge("check_security", "check_style")
-        workflow.add_edge("check_style", "generate_summary")
+        # Define edges
+        workflow.add_edge("style_analysis", "best_practices")
+        workflow.add_edge("best_practices", END)
+
+        # Set entry point
+        workflow.set_entry_point("style_analysis")
 
         return workflow.compile()
 
-    async def execute(self, pr_diff: str) -> Dict:
-        """Execute the workflow"""
+    async def execute(self, diff: str) -> Dict[str, Any]:
+        """Execute the analysis workflow"""
         try:
-            result = await self.graph.ainvoke({
-                "diff": pr_diff,
-                "metadata": {}
-            })
-            return self._generate_summary(result)
+            # Initialize state
+            initial_state = {
+                "diff": diff,
+                "metadata": {"files_changed": diff.count("diff --git")},
+                "style_issues": [],
+                "formatting_suggestions": [],
+                "documentation_issues": [],
+                "best_practice_violations": []
+            }
+
+            # Execute workflow
+            result = await self.graph.ainvoke(initial_state)
+            
+            # Add summary
+            result["summary"] = {
+                "total_issues": (
+                    len(result.get("style_issues", [])) +
+                    len(result.get("formatting_suggestions", [])) +
+                    len(result.get("documentation_issues", [])) +
+                    len(result.get("best_practice_violations", []))
+                ),
+                "status": "completed",
+                "files_analyzed": result["metadata"]["files_changed"]
+            }
+
+            return result
+            
         except Exception as e:
+            logger.error(f"Workflow execution failed: {e}")
             return {
                 "error": str(e),
                 "summary": {
-                    "total_files": 0,
                     "total_issues": 0,
-                    "critical_issues": 0
+                    "status": "failed",
+                    "files_analyzed": 0
                 }
             }
-
-    def _parse_diff(self, diff: str) -> Dict:
-        """Parse the PR diff into structured format"""
-        return {
-            "files": [],
-            "changes": [],
-            "stats": {"additions": 0, "deletions": 0}
-        }
-
-    def _generate_summary(self, data: Dict) -> Dict:
-        """Generate final analysis summary"""
-        return {
-            "summary": {
-                "total_files": len(data.get("files", [])),
-                "total_issues": len(data.get("issues", [])),
-                "critical_issues": 0
-            },
-            "details": data
-        }

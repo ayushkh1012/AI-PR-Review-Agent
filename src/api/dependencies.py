@@ -1,24 +1,39 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from ..core.github import GitHubClient
+from ..core.models import PRAnalysisRequest
 from ..workflows.review_workflow import PRReviewWorkflow
-from langchain.llms import Ollama
+from langchain_community.llms import Ollama
 from ..core.config import Settings
+import httpx
+import logging
 
-settings = Settings()
+logger = logging.getLogger(__name__)
 
-async def get_github_client(github_token: str):
-    return GitHubClient(github_token)
+def get_github_client(request: PRAnalysisRequest) -> GitHubClient:
+    """
+    Create GitHub client with token from request
+    """
+    return GitHubClient(token=request.github_token)
 
-async def get_llm():
-    """Get configured Llama 3.2 instance"""
-    return Ollama(
+def get_workflow() -> PRReviewWorkflow:
+    """
+    Create PR review workflow with Ollama LLM
+    """
+    settings = Settings()
+    
+    # Check available models
+    try:
+        response = httpx.get(f"{settings.OLLAMA_URL}/api/tags")
+        if response.status_code == 200:
+            models = response.json()
+            logger.info(f"Available models: {models}")
+    except Exception as e:
+        logger.error(f"Error checking models: {e}")
+    
+    llm = Ollama(
         base_url=settings.OLLAMA_URL,
-        model="llama2:3.2",  # Specifically use Llama 3.2
-        temperature=0.1,     # Lower temperature for more focused responses
-        top_p=0.9,          # Nucleus sampling
-        num_ctx=4096,       # Context window size
-        repeat_penalty=1.1   # Reduce repetition
+        model="llama2:latest",  # Changed to match exact model name
+        temperature=0.7,
+        timeout=120
     )
-
-async def get_workflow(llm=Depends(get_llm)):
     return PRReviewWorkflow(llm)

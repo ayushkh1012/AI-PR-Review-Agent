@@ -11,7 +11,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - OLLAMA_URL=http://ollama:11434
-      - MODEL_NAME=llama2:3.2
+      - MODEL_NAME=llama2:latest
       - DEBUG=True
     depends_on:
       - redis
@@ -26,7 +26,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - OLLAMA_URL=http://ollama:11434
-      - MODEL_NAME=llama2:3.2
+      - MODEL_NAME=llama2:latest
     depends_on:
       - redis
       - ollama
@@ -59,7 +59,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     command: >
-      sh -c "ollama pull llama2:3.2 && ollama serve"
+      sh -c "ollama pull llama2:latest && ollama serve"
     deploy:
       resources:
         reservations:

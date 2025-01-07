@@ -58,16 +58,33 @@ class CodeReviewAgent:
         }
 
     def _extract_issues(self, response) -> List[Dict]:
-        """
-        Extract code issues from LLM response.
-        
-        Args:
-            response: Raw LLM response
+        """Extract code issues from LLM response"""
+        try:
+            # Basic parsing of LLM response
+            issues = []
+            lines = response.split('\n')
+            current_issue = None
             
-        Returns:
-            List[Dict]: List of identified issues
-        """
-        return []
+            for line in lines:
+                if line.startswith('Issue:'):
+                    if current_issue:
+                        issues.append(current_issue)
+                    current_issue = {'description': line[6:].strip()}
+                elif line.startswith('Line:') and current_issue:
+                    try:
+                        current_issue['line'] = int(line[5:].strip())
+                    except ValueError:
+                        current_issue['line'] = 0
+                elif line.startswith('Suggestion:') and current_issue:
+                    current_issue['suggestion'] = line[11:].strip()
+                    
+            if current_issue:
+                issues.append(current_issue)
+                
+            return issues
+        except Exception as e:
+            print(f"Error parsing issues: {str(e)}")
+            return []
 
     def _extract_suggestions(self, response) -> List[Dict]:
         """
